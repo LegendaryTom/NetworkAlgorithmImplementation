@@ -1,0 +1,101 @@
+<html>
+<script src="lodash.js"></script>
+<script src="amcharts/core.js"></script>
+<script src="amcharts/charts.js"></script>
+<script src="data/run1.js"></script>
+<script src="data/run2.js"></script>
+<script src="data/run3.js"></script>
+<script src="data/run4.js"></script>
+<script src="data/run5.js"></script>
+<script src="data/run6.js"></script>
+<script src="data/run7.js"></script>
+<script src="data/run8.js"></script>
+<script src="data/run9.js"></script>
+<script src="data/run10.js"></script>
+
+<body>
+<div id="nodesChart"></div>
+<div id="edgesChart"></div>
+
+<script>
+
+  setTimeout(function(){
+    var numberOfSteps = 50000;  //number of timesteps the network was run
+    var averageRun = [];
+    for(var n=0;n<runs[0].length;n++) {
+      var newEntry = {t:runs[0][n]["t"], "0.6n":0, "0.6e":0, "0.75n":0, "0.75e":0, "0.9n":0, "0.9e":0};
+      //console.log(newEntry);
+      for(var i=0;i<runs.length;i++) {
+        //console.log(runs[i][n]);
+        newEntry["0.6n"]+= runs[i][n]["0.6n"]/runs.length;
+        newEntry["0.6e"]+= runs[i][n]["0.6e"]/runs.length;
+        newEntry["0.75n"]+= runs[i][n]["0.75n"]/runs.length;
+        newEntry["0.75e"]+= runs[i][n]["0.75e"]/runs.length;
+        newEntry["0.9n"]+= runs[i][n]["0.9n"]/runs.length;
+        newEntry["0.9e"]+= runs[i][n]["0.9e"]/runs.length;
+      }
+      averageRun.push(newEntry)
+    }
+
+    /** Uses the AmCharts library to create two charts, one for nodes and one for edges */
+    am4core.ready(function() {
+
+      var charts = ["nodes","edges"];
+      for(var n=0; n<charts.length; n++) {
+        var chartName = charts[n];
+        var chart = am4core.create(chartName+"Chart", am4charts.XYChart);
+
+        //historyOfNetwork = historyOfNetwork.filter(function(value){ return value!=null;});
+        chart.data = averageRun;
+
+        chart.colors.list = [
+          am4core.color("#845EC2"),
+          am4core.color("#FF9671"),
+          am4core.color("#D65DB1")
+        ];
+        chart.paddingRight = 20;
+
+        // Create axes
+        var categoryAxis = chart.xAxes.push(new am4charts.ValueAxis());
+        categoryAxis.dataFields.valueX = "t";
+        categoryAxis.min = 0;
+        categoryAxis.max = numberOfSteps;
+        categoryAxis.title.text = "Timesteps (t)";
+
+
+        // Create value axis
+        var valueAxis = chart.yAxes.push(new am4charts.ValueAxis());
+        valueAxis.baseValue = 0;
+        valueAxis.max = numberOfSteps;
+        valueAxis.title.text = chartName.substring(0,1).toUpperCase()+chartName.substring(1);
+
+        // Create series
+        var series = chart.series.push(new am4charts.LineSeries());
+        series.dataFields.valueY = "0.6"+chartName.substring(0, 1);
+        series.dataFields.valueX = "t";
+        series.strokeWidth = 2.3;
+        series.name="p=0.6"
+
+        var series = chart.series.push(new am4charts.LineSeries());
+        series.dataFields.valueY = "0.75"+chartName.substring(0, 1);
+        series.dataFields.valueX = "t";
+        series.strokeWidth = 2.3;
+        series.name="p=0.75"
+
+        var series = chart.series.push(new am4charts.LineSeries());
+        series.dataFields.valueY = "0.9"+chartName.substring(0, 1);
+        series.dataFields.valueX = "t";
+        series.strokeWidth = 2.3;
+        series.name="p=0.9"
+
+        chart.legend = new am4charts.Legend();
+        chart.exporting.menu = new am4core.ExportMenu();
+      }
+
+    });
+  }, 1000)
+
+
+</script>
+</body>
+</html>

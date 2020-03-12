@@ -1,0 +1,271 @@
+<html>
+<script src="lodash.js"></script>
+<script src="amcharts/core.js"></script>
+<script src="amcharts/charts.js"></script>
+<body>
+<div id="nodesChart"></div>
+<div id="edgesChart"></div>
+<div id="output"></div>
+
+<script>
+  var nextNodeID = 1;
+  var adjacencyList = {};  //stores state of the network
+  var nodeCount = 1;
+  var timesteps = 0;
+  var debug = false;
+  var historyOfNetwork = [];  //stores the historical count of the nodes and edges at each timestep
+  var numberOfSteps = 50000;  //number of timesteps to run the network for
+  for(var n=10; n<numberOfSteps+1; n+=10){
+    historyOfNetwork[n] = {t:n};
+  }
+
+  /** Restart the network from the beginning */
+  function initialize()
+  {
+    nextNodeID = 2;
+    adjacencyList = {};
+    nodeCount = 1;
+    timesteps = 0;
+    addNodeToNetwork(1, 1);  //Adds the starting edge from node 1 to node 1
+  }
+
+  /** Adds a node to the network */
+  function addNode() {
+    var newNode = nextNodeID;
+    nextNodeID++;
+    var nodeToConnectTo = selectNodeToConnectTo();
+    addNodeToNetwork(newNode, nodeToConnectTo);
+  }
+
+  /** Selects which node the new node will connect to */
+  function selectNodeToConnectTo() {
+    //Calculate each node's probability of being chosen
+    var nodeChosenProbabilities = [];
+    var edgeCount = Math.max(countEdges(), 1);
+    for (var node in adjacencyList) {
+      var degree = adjacencyList[node].length; //length of array is the degree of the node
+      nodeChosenProbabilities[node] = degree/(edgeCount*2); //Equation (1): Pt+1[u] = dt(u)/ 2mt
+    }
+
+    //Choose a node based on the calculated probabilities
+    var randomValue = Math.random(); //Random value between 0 and 1
+    var cumulativeProbability = 0;  //Sum of nodeChosenProbabilities array is 1
+    for (var node in adjacencyList) {
+      cumulativeProbability+=nodeChosenProbabilities[node];
+      if(randomValue < cumulativeProbability) return node;
+    }
+    console.error("Unable to select node to connect to");
+    console.error("Trying again");
+    return selectNodeToConnectTo();
+  }
+
+  /** Selects and deletes a node from the network */
+  function deleteNode() {
+    var nodeToDelete = selectNodeToDelete();
+    removeNodeFromNetwork(nodeToDelete);
+  }
+
+  /** Selects which node in the network should be deleted */
+  function selectNodeToDelete() {
+    //Calculate each node's probability of being chosen
+    var nodeChosenProbabilities = [];
+    var edgeCount = Math.max(countEdges(), 1);
+    var total = 0;  //total cumulative probability
+    for (var node in adjacencyList) {
+      var degree = adjacencyList[node].length; //length of array is the degree of the node
+      nodeChosenProbabilities[node] = (nodeCount - degree)/(nodeCount*nodeCount - (edgeCount*2)); //Equation (2): Pt+1[u] = (nt - dt(u))/(nt^2 - 2mt)
+      total+=nodeChosenProbabilities[node];
+    }
+
+    //Normalize probabilities so that the sum is 1
+    for (var node in adjacencyList) {
+      nodeChosenProbabilities[node] = nodeChosenProbabilities[node]/total;
+    }
+
+    //Choose a node based on the calculated probabilities
+    var randomValue = Math.random(); //Random value between 0 and 1
+    var cumulativeProbability = 0;  //Sum of nodeChosenProbabilities array is 1
+    for (var node in adjacencyList) {
+      cumulativeProbability+=nodeChosenProbabilities[node];
+      if(randomValue < cumulativeProbability) return node;
+    }
+
+    console.error("Unable to select node to delete");
+    console.error("Trying again");
+    return selectNodeToDelete();
+  }
+
+  /**
+   * Adds a new node (u) to the network and adds an edge between the new node (u) and an existing node (v)
+   * @param u {integer} - New node to add
+   * @param v {integer} - Existing node that the new node will connect to
+   */
+  function addNodeToNetwork(u, v){
+    if(debug) console.log(`addNodeToNetwork(%s,%s)`, u, v);
+    adjacencyList[u] = []; //Adds new node (u) to the network
+    adjacencyList[u].push(v);  //Add edge from u to v
+
+    //When the edge is between two separate nodes
+    if(u != v) adjacencyList[v].push(u);  //Add edge from v to u
+    nodeCount++;
+  }
+
+  /**
+   * Removes the node (v) from the network and any edges connected to that node
+   * @param v {integer} - Node to remove
+   */
+  function removeNodeFromNetwork(v){
+    if(debug)  console.log(`removeNodeFromNetwork(%s)`, v);
+    //Removes node v's entry in adjacencyList
+    delete adjacencyList[v];
+
+    //Removes all edges between node u and node v
+    for( var u in adjacencyList)
+    {
+      //if(debug)  console.log(`adjacencyList[%s] Before Pull:`, u, adjacencyList[u]);
+      adjacencyList[u] = adjacencyList[u].filter(function(value){ return value != v;});  // removes edges from u to v
+      //if(debug)  console.log(`adjacencyList[%s] After Pull:`, u, adjacencyList[u]);
+    }
+    nodeCount--;
+  }
+
+
+
+  /**
+   * Prints the networks total nodes and edges, and optionally the network's adjacency list to the console
+   */
+  function printNetwork() {
+    var output = ""
+    output+= "Nodes: "+nodeCount+"\n";
+    output+= "Edges: "+countEdges()+"\n";
+    output+= "Timesteps: "+timesteps+"\n";
+
+    //Debug: Print AdjacencyList
+    if(debug) {
+      output+= "AdjacencyList:\n";
+      for( var node in adjacencyList) {
+        output+= "Node("+node+"): ";
+        for(var n=0;n<adjacencyList[node].length;n++){
+          output+= node+"=>"+adjacencyList[node][n];
+          if(n+1<adjacencyList[node].length) output+=", ";
+        }
+        output+= "\n";
+      }
+    }
+    console.log(output)
+  }
+
+  /**
+   * Returns the number of edges
+   * @returns {number} - Edges in the network
+   */
+  function countEdges() {
+    var edgeCount = 0;
+    for( var node in adjacencyList) {
+      for(var n=0;n<adjacencyList[node].length;n++){
+        edgeCount++;
+      }
+    }
+    return edgeCount/2;
+  }
+
+  /**
+   * Causes the network to have a "Birth" or a "Death" and for the network to move forward one timestep
+   * Cheats to keep network from getting smaller than 10 nodes
+   * @param p {number} - Chance of birth occurring (between 0 and 1)
+   */
+  function selectBirthOrDeath(p) {
+    timesteps++;
+    if(Math.random() < p || nodeCount < 10) addNode();  //birth
+    else deleteNode();  //death
+
+    //Store a historical count of nodes and edges at every 10th timestep
+    if(timesteps%10==0)
+    {
+      historyOfNetwork[timesteps][p+"n"] = nodeCount;  //total nodes in the network
+      historyOfNetwork[timesteps][p+"e"] = countEdges();  //total edges in the network
+    }
+
+  }
+
+  // Run the network for three different values of p
+  var p = [0.6, 0.75, 0.9];
+  for(var i=0; i<p.length; i++) {
+    console.log("Running p=", p[i]);
+
+    var startTime = new Date();
+    initialize();  //Starts a brand new network
+    // Runs the network for numberOfSteps timesteps
+    for(var n=0; n<numberOfSteps; n++){
+      selectBirthOrDeath(p[i]);  //Performs one timestep
+    }
+    var endTime = new Date();
+    console.log("Elapsed Time:", endTime - startTime);
+    printNetwork();
+  }
+
+
+  console.log(_.without([1,2,3,4,5], 3));
+
+  //Outputs JSON representation of one run to the page
+  document.getElementById('output').innerText = JSON.stringify(historyOfNetwork);
+
+  /** Uses the AmCharts library to create two charts, one for nodes and one for edges */
+  am4core.ready(function() {
+
+    var charts = ["nodes","edges"];
+    for(var n=0; n<charts.length; n++) {
+      var chartName = charts[n];
+      var chart = am4core.create(chartName+"Chart", am4charts.XYChart);
+
+      historyOfNetwork = historyOfNetwork.filter(function(value){ return value!=null;});
+      chart.data = historyOfNetwork;
+
+      chart.colors.list = [
+        am4core.color("#845EC2"),
+        am4core.color("#FF9671"),
+        am4core.color("#D65DB1")
+      ];
+      chart.paddingRight = 20;
+
+      // Create axes
+      var categoryAxis = chart.xAxes.push(new am4charts.ValueAxis());
+      categoryAxis.dataFields.valueX = "t";
+      categoryAxis.min = 0;
+      categoryAxis.max = numberOfSteps;
+      categoryAxis.title.text = "Timesteps (t)";
+
+
+      // Create value axis
+      var valueAxis = chart.yAxes.push(new am4charts.ValueAxis());
+      valueAxis.baseValue = 0;
+      valueAxis.max = numberOfSteps;
+      valueAxis.title.text = chartName.substring(0,1).toUpperCase()+chartName.substring(1);
+
+      // Create series
+      var series = chart.series.push(new am4charts.LineSeries());
+      series.dataFields.valueY = "0.6"+chartName.substring(0,1);
+      series.dataFields.valueX = "t";
+      series.strokeWidth = 2.3;
+      series.name="p=0.6"
+
+      var series = chart.series.push(new am4charts.LineSeries());
+      series.dataFields.valueY = "0.75"+chartName.substring(0,1);
+      series.dataFields.valueX = "t";
+      series.strokeWidth = 2.3;
+      series.name="p=0.75"
+
+      var series = chart.series.push(new am4charts.LineSeries());
+      series.dataFields.valueY = "0.9"+chartName.substring(0,1);
+      series.dataFields.valueX = "t";
+      series.strokeWidth = 2.3;
+      series.name="p=0.9"
+
+      chart.legend = new am4charts.Legend();
+      chart.exporting.menu = new am4core.ExportMenu();
+    }
+
+  });
+</script>
+</body>
+</html>
